@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "sass": "^1.62.1",
+    "vitepress": "^1.0.0-alpha.75"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
