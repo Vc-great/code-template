@@ -2,8 +2,8 @@ import { defineConfig } from 'vitepress'
 import {sidebar} from '../element-ui/component'
 import {tsSidebar} from '../ts/component'
 // https://vitepress.dev/reference/site-config
-console.log("-> tsSidebar",tsSidebar);
 export default defineConfig({
+  base:'/code-template/',
   title: "code-template",
   description: "code block",
   themeConfig: {
