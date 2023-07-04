@@ -4,7 +4,7 @@ layout: home
 
 hero:
   name: "code"
-  text: "code"
+  text: "page"
   tagline: My great project tagline
   actions:
     - theme: brand
