@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 import {sidebar} from '../element-ui/component'
 import {tsSidebar} from '../ts/component'
+import {nestjsSidebar} from '../nestjs/component'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   base:'/code-template/',
@@ -12,12 +13,14 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Element-ui', link: '/element-ui/table' },
       { text: 'ts', link: '/ts/index' },
+      { text: 'nestjs', link: '/nestjs/index' },
       { text: 'Examples', link: '/markdown-examples' }
     ],
 
     sidebar: {
       '/element-ui/': sidebar,
-      '/ts/':tsSidebar
+      '/ts/':tsSidebar,
+      '/nestjs/':nestjsSidebar,
     },
 
 

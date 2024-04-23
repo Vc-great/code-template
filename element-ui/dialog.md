@@ -11,21 +11,20 @@
         :inline="true"
         label-width="120px"
       >
-        <FormItem :form-options="getOption" :form="form" />
+        <FormItem :form-options="formOptionComputed" :form="form" />
       </el-form>
     </div>
     <!---->
     <template #footer>
             <span class="dialog-footer">
               <el-button
-                  v-for="(item,index) in buttonOptionFunc()"
-                  :key="index"
-                  :type="item.type"
-                  @click="item.click"
-              >{{ item.label }}
-              </el-button>
-                <el-button plain @click="cancel">取消</el-button>
-                <el-button :loading="loading" type="primary" @click="submit" v-if="showButton">确定</el-button>
+                    v-for="(item, index) in buttonOptionFunc()"
+                    :key="index"
+                    :type="item.type"
+                    :loading="item.loading"
+                    @click="item.click(item)"
+                    >{{ item.label }}
+                </el-button>
             </span>
     </template>
   </el-dialog>
@@ -46,11 +45,20 @@ import _ from "lodash-es";
 import { computed, onMounted, reactive, ref } from 'vue'
 import FormItem from './components/form-item.vue'
 import { buttonOptionFuncType, buttonOptionType } from "@/types/table";
-
+import { validateFormToBoolean } from '@/utils/validate-form'
 const store = useStore()
 
 const emits = defineEmits(['cancel','getTableData'])
-const props = defineProps(['status','listRow'])
+
+interface Props {
+    status: string
+    //todo 修改类型
+    listRow: ListResponseContentDetail
+}
+const props = withDefaults(defineProps<Props>(), {
+    status: Status.Create,
+    listRow: {}
+})
 const rowDetail = ref({})
 
 const title =
@@ -60,24 +68,66 @@ const loading = ref(false)
 const dialogVisible = ref(true)
 
 const form = ref(createFormByFormOption(formOption))
-
+const formOptionReactive = reactive(formOption)
 const formRef = ref<FormInstance>()
 
 const formRules: { any } = reactive(setRulesByFormOption(formOption))
 
 const disabled = computed(() => props.status === Status.Detail)
 
-const showButton = computed(() => props.status !== Status.Detail)
-
 const isDetail = computed(() => props.status === Status.Detail)
-
-const getOption = computed(() => {
-  return formOption.map(item => {
-    return {
-      ...item,
-      disabled: props.status === Status.Detail
+const formOptionComputed = computed(() => {
+    const setText = option => {
+        return _.reduce(
+            option,
+            (result, value, key) => {
+                return {
+                    ...result,
+                    [key]: {
+                        ...value,
+                        text: _.isFunction(value.text) ? value.text(rowDetail.value, key) : rowDetail.value[key]
+                    }
+                }
+            },
+            {}
+        )
     }
-  })
+
+    const setDisabled = option => {
+        return _.reduce(
+            option,
+            (result, value, key) => {
+                return {
+                    ...result,
+                    [key]: {
+                        ...value,
+                        disabled: _.isFunction(value.disabled) ? value.disabled(isCreate.value) : value.disabled
+                    }
+                }
+            },
+            {}
+        )
+    }
+
+    const setRemoteMethod = option => {
+        return _.reduce(
+            option,
+            (result, value, key) => {
+                return {
+                    ...result,
+                    [key]: {
+                        ...value,
+                        remoteMethod: _.isFunction(value.remoteMethod)
+                            ? value.remoteMethod(formOptionReactive[key])
+                            : value.remoteMethod
+                    }
+                }
+            },
+            {}
+        )
+    }
+
+    return _.flow([setText, setDisabled, setRemoteMethod])(formOptionReactive)
 })
 
 
@@ -93,16 +143,21 @@ function buttonOptionFunc():buttonOptionType {
         return true
       }
     },
-    {
-      label: '确定',
-      type: 'primary',
-      click: ()=>{
-        submit()
-      },
-      has:()=>{
-        return !isDetail
-      }
-    }
+        {
+            loading: false,
+            label: '确定',
+            type: 'primary',
+            click: async item => {
+                if (await validateFormToBoolean([formRef.value])) {
+                    item.loading = true
+                    await submit()
+                    item.loading = false
+                }
+            },
+            has: () => {
+                return !isDetail.value
+            }
+        }
   ]
   return result.filter(item=>item.has())
 }
@@ -210,6 +265,21 @@ export const setRulesByFormOption = formOption => {
         },
         {}
     )
+}
+```
+
+## validateFormToBoolean
+
+```ts
+export async function validateFormToBoolean(formEl: Array<FormInstance | undefined>): Promise<boolean> {
+    if (!formEl) return
+    if (_.isArray(formEl)) {
+        const map = _.map(formEl, async item => {
+            return await item?.validate().catch(() => false)
+        })
+        const all = await Promise.all(map)
+        return !!all.every(item => item)
+    }
 }
 ```
 

@@ -87,6 +87,116 @@
 </script>
 ```
 
+## 合并表格
+```vue
+<template>
+  <el-table
+      :span-method="arraySpanMethod"
+  >
+  </el-table>
+</template>
+<script !src="">
+import _ from 'lodash-es'
+export function mergeCell(list) {
+  return merageList(oneReverseTwo(fixInitData(merageOneDimensionality(twoReverseOne(list)))), list)
+  // 转成一维数组
+  function twoReverseOne(list) {
+      //在表格中是第几列
+    const result = [[], []]
+
+    list.forEach(item => {
+        //todo 要合并的列
+      result[0].push(item.issueDictionaryCategory)
+      result[1].push(item.issueDictionaryItem)
+    })
+
+    return result
+  }
+
+  // 合并 一位数组
+  function merageOneDimensionality(list) {
+    list.forEach((item, li) => {
+      // 遍历 item
+
+      for (let i = 0; i < item.length; i++) {
+        let sameIndex = []
+        // 找到相同
+        for (let j = i + 1; j < item.length; j++) {
+          if (!item[i]) continue
+
+          if (item[j] === item[i]) {
+            sameIndex.push(j)
+            // 数组最后更新数组
+            if (j === item.length - 1) {
+              updataArr(sameIndex, item)
+              item[i] = sameIndex.length + 1
+            }
+          } else {
+            updataArr(sameIndex, item)
+            item[i] = sameIndex.length + 1
+            sameIndex = []
+            i = j - 1
+            break
+          }
+        }
+      }
+    })
+
+    return list
+  }
+
+  function updataArr(sameIndex, item) {
+    sameIndex.forEach(x => {
+      item[x] = 0
+    })
+  }
+
+  // undefined 变 1
+  function fixInitData(list) {
+    return list.map(item => {
+      return item.map(x => {
+        return x === undefined ? 1 : x
+      })
+    })
+  }
+
+  //
+  function oneReverseTwo(list) {
+    console.log('-> list', _.cloneDeep(list))
+    if (_.isEmpty(list)) {
+      return []
+    }
+
+    const result = []
+
+    for (let i = 0; i < list[0].length; i++) {
+      result[i] = []
+      list.forEach((item, index) => {
+        result[i].push(item[i])
+      })
+    }
+    return result
+  }
+
+  // 合并数据
+  function merageList(result, list) {
+    const data = list.map((x, i) => {
+      return {
+        ...x,
+        subjectDepth: Math.max(...result.map(x => x.length)) || 0,
+        rowspan: result[i], // 合并行数
+        colspan: 1 // 合并列数
+      }
+    })
+    return data
+  }
+}
+</script>
+
+```
+
+
+
 ## template
 
 ```vue
