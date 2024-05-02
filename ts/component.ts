@@ -26,6 +26,10 @@ const components:route = {
         "text": "downLoad"
       },
       {
+        "link": "/enum",
+        "text": "enum"
+      },
+      {
         "link": "/flattenObject",
         "text": "flattenObject"
       },
@@ -42,13 +46,14 @@ const components:route = {
         "text": "qs"
       },
       {
-        "link": "/dayjs",
-        "text": "dayjs"
-      },
-      {
         "link": "/sortablejs",
         "text": "sortablejs"
       },
+      {
+        "link": "/type",
+        "text": "type"
+      },
+
 
     /*  {
         "link": "/border",
