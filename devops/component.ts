@@ -21,6 +21,10 @@ const components: route = {
             {
                 "link": "/docker-file",
                 "text": "docker-file"
+            },
+            {
+                "link": "/jenkins-file",
+                "text": "jenkins-file"
             }
         ]
     }
