@@ -22,8 +22,16 @@ const components:route = {
         "text": "dayjs"
       },
       {
+        "link": "/upload",
+        "text": "upload"
+      },
+      {
         "link": "/downLoad",
         "text": "downLoad"
+      },
+      {
+        "link": "/image",
+        "text": "image"
       },
       {
         "link": "/enum",
@@ -33,10 +41,7 @@ const components:route = {
         "link": "/flattenObject",
         "text": "flattenObject"
       },
-      {
-        "link": "/image",
-        "text": "image"
-      },
+
       {
         "link": "/multipartform-data",
         "text": "multipartform-data"

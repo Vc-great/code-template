@@ -84,3 +84,17 @@ return 'data:image/png;base64,' + btoa(
     new Uint8Array(res.data).reduce((data, byte) => data + String.fromCharCode(byte), '')
   );
 ```
+
+
+**获取文件名(未验证):**
+```ts
+// xhr是XMLHttpRequest对象
+const content = xhr.getResponseHeader('content-disposition'); // 注意是全小写，自定义的header也是全小写
+if (content) {
+    let name1 = content.match(/filename=(.*);/)[1]; // 获取filename的值
+    let name2 = content.match(/filename\*=(.*)/)[1]; // 获取filename*的值
+    name1 = decodeURIComponent(name1);
+    name2 = decodeURIComponent(name2.substring(6)); // 这个下标6就是UTF-8''
+}
+
+```

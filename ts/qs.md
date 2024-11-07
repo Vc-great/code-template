@@ -18,6 +18,19 @@ qs.stringify({ a: ['b', 'c'] }, { arrayFormat: 'brackets' })
 qs.stringify({ a: ['b', 'c'] }, { arrayFormat: 'repeat' })
 // 'a=b&a=c'
 
+
+const obj = {
+    arr: [
+        { value: 1, label: "啊" }
+    ],
+    num: 2,
+
+};
+
+// 将对象序列化为 URL 查询字符串
+qs.stringify(obj, { encode: true, allowDots: true });
+//arr[0].value=1&arr[0].label=啊&num=2
+
 //axios
 axios({
   paramsSerializer(params) {
