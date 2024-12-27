@@ -29,6 +29,13 @@ function parseBinaryStream(binaryData) {
 
 ```
 响应为Uint8Array,通过btoa转化为Base64编码
+
+arraybuffer 是一种原始二进制数据缓冲区，用于处理较低级别的二进制数据。当你设置 responseType: 'arraybuffer' 时，返回的数据是一个 JavaScript ArrayBuffer 对象，表示原始的二进制数据。
+
+适用场景
+你需要对数据进行详细的操作或解析。
+适合用于处理那些不直接显示的二进制数据，比如音频、视频、文件处理等。
+需要通过 JavaScript 操作这些二进制数据，比如用 Canvas 渲染图像。
 ```vue
 <template>
   <img :src="imgSrc"  />
@@ -39,26 +46,31 @@ const res = await axios({
   method:'get',
   responseType: 'arraybuffer',
 })
-//btoa() 方法可以将一个二进制字符串（例如，将字符串中的每一个字节都视为一个二进制数据字节）编码为 Base64 编码的 ASCII 字符串。
-let imgSrc =
-    'data:image/png;base64,' +
-    btoa(new Uint8Array(data)
-        .reduce((data, byte) => data + String.fromCharCode(byte), ''))
 
+const buffer = res.data
+const blob = new Blob([buffer], { type: 'image/png' })
+
+this.imgSrc=  window.URL.createObjectURL(blob)
 
 </script>
 ```
 
 ## blob
+blob 是一种表示不可变的原始数据的类文件对象，它通常用于处理像图片、视频、音频等文件。当你设置 responseType: 'blob' 时，返回的数据是一个 Blob 对象。
+
+适用场景
+适合用于直接显示图像、音频、视频等媒体文件。
+适合于在浏览器中显示文件或用于下载文件。
+如果你只想直接展示或下载文件而不做进一步的处理，使用 blob 是更方便的选择。
+
 ```ts
 //请求增加responseType: "blob"
-axios({
+const res = axios({
     responseType: "blob"
 })
-
+const buffer = res.data
 //返回结果
-const blob = new Blob([res], { type: 'image/png' })
-img.src = window.URL.createObjectURL(blob)
+img.src = window.URL.createObjectURL(buffer)
 ```
 
 
