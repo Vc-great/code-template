@@ -1,47 +1,63 @@
 
 # request
 ```ts
-import {
-     handleNetWorkError401, handleNetWorkError403,
-    isRequestError, otherErrorHandle,
-    showMessage,
-} from './request-interceptors'
+import axios from 'axios-miniprogram'
+import type { AxiosInstance, AxiosRequestConfig } from 'axios-miniprogram'
+
 import _ from 'lodash-es'
-import axios from 'axios'
-import type { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios'
-import {NetworkErrorHandle} from "./request-error";
-import {HttpStatusCode} from "./HttpStatusCode";
-import {getToken} from './authorization'
-const axiosOptions: AxiosRequestConfig = {
-/*    baseURL : import.meta.env.VITE_BASE_API,
-    timeout : Number(import.meta.env.VITE_REQUEST_TIME_OUT)*/
-    baseURL: process.env.TARO_APP_BASE_API,
-    timeout: process.env.requestTimeout |0, //0为无超时时间
-    headers: {
-        Authorization: `Bearer ${getToken()}`
-    }
+
+import { setInterceptor } from './request-interceptors'
+
+export const axiosOptions: AxiosRequestConfig = {
+    baseURL: process.env.TARO_APP_BASE_API
+    // timeout: Number(process.env.TARO_APP_REQUEST_TIME_OUT) || 0 //0为无超时时间
 }
 
-function setInterceptor(instance: AxiosInstance) {
-    //instance.interceptors.request.use()
+export const request: AxiosInstance = _.flow([setInterceptor])(axios.create(axiosOptions))
+
+```
+
+#request-interceptors
+```ts
+import { TOKEN } from '@/utils/constant'
+import { httpStatusCode, networkErrMap } from '@/utils/httpStatusCode'
+import { BusinessErrorHandle, NetworkErrorHandle } from '@/utils/requestError'
+import { logoutClearStorage } from '@/utils/storage'
+
+import Taro from '@tarojs/taro'
+
+import { inRange } from 'lodash-es'
+
+import { type AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios-miniprogram'
+
+export type ResponseBusinessData = {
+    code: number
+    msg: string
+}
+
+export function setInterceptor(instance: AxiosInstance) {
+    instance.interceptors.request.use(config => {
+        config = setAuthorization(config)
+        return config
+    })
 
     instance.interceptors.response.use(
         (response: AxiosResponse) => {
             //业务错误 进行消息提示
-            //todo
-            if(isRequestError(response) ){
-                showMessage(response.data.message)
-               return Promise.reject(response)
+            if (isRequestError(response)) {
+                new BusinessErrorHandle(response.data as ResponseBusinessData)
+                    .addError(httpStatusCode.Unauthorized, handleNetWorkError401)
+                    .addError(httpStatusCode.Forbidden, handleNetWorkError403)
+                    .addOtherErrorHandle(otherBusinessErrorHandle)
+                    .handle()
+
+                return Promise.reject(response)
             }
             //其他情况均为正常
-            return response.data
+            return response
         },
         error => {
-             new NetworkErrorHandle(error)
-                 .addError(HttpStatusCode.Unauthorized,handleNetWorkError401)
-                 .addError(HttpStatusCode.Forbidden,handleNetWorkError403)
-                 .addOtherErrorHandle(otherErrorHandle)
-                 .handle()
+            new NetworkErrorHandle(error as AxiosResponse).addOtherErrorHandle(otherNetWorkErrorHandle).handle()
 
             return Promise.reject(error)
         }
@@ -50,92 +66,171 @@ function setInterceptor(instance: AxiosInstance) {
     return instance
 }
 
-export const request: AxiosInstance = _.flow([setInterceptor])(axios.create(axiosOptions))
+export function setAuthorization(config: AxiosRequestConfig) {
+    const token = Taro.getStorageSync(TOKEN)
+    config.headers = {
+        ...config.headers,
+        Authorization: token ? `Bearer ${token}` : ''
+    }
+
+    return config
+}
+
+export function isRequestError(response: AxiosResponse) {
+    const data = response.data as ResponseBusinessData
+    const isBusinessError = handleBusinessError(data)
+    const isNetWorkError = handleNetWorkError(response)
+    return isBusinessError || isNetWorkError
+}
+
+export function handleBusinessError(response: ResponseBusinessData): boolean {
+    //有code 并且code 不在200-300之间 为异常
+    return !inRange(response.code, 200, 300)
+}
+
+export function handleNetWorkError(response: AxiosResponse): boolean {
+    return !inRange(response.status, 200, 300)
+}
+
+//
+export function handleNetWorkError401(response: ResponseBusinessData): void {
+    logoutClearStorage()
+    //没有登陆 跳转到login
+    Taro.showToast({
+        title: '(401)' + response.msg,
+        icon: 'none',
+        duration: 2000
+    })
+    setTimeout(() => {
+        Taro.reLaunch({
+            url: '/pages/start-page/index'
+        })
+    }, 2000)
+}
+//
+export function handleNetWorkError403(response: ResponseBusinessData): void {
+    logoutClearStorage()
+    //没有访问权限 跳转到403页面或登陆页
+
+    Taro.showToast({
+        title: '(403)' + response.msg,
+        icon: 'none',
+        duration: 2000
+    })
+    setTimeout(() => {
+        Taro.reLaunch({
+            url: '/pages/start-page/index'
+        })
+    }, 2000)
+}
+
+export function otherBusinessErrorHandle(error: ResponseBusinessData): void {
+    Taro.showToast({
+        title: `(${error.code})` + error.msg || '',
+        icon: 'none',
+        duration: 2000
+    })
+}
+
+export function otherNetWorkErrorHandle(error: AxiosResponse): void {
+    const message = `(HTTP${error.response.status})${error.response?.data?.errMsg || networkErrMap[error.response.status] || ''}`
+    console.log('-> error', error)
+    Taro.showToast({
+        title: message,
+        icon: 'none',
+        duration: 2000
+    })
+}
+
 
 ```
 
-#request-error
+# requestError
 ```ts
-import {AxiosError} from "axios";
-import _ from 'lodash-es'
-type ErrHandle = (err: AxiosError) => void;
+import { ResponseBusinessData } from '@/utils/request-interceptors'
+import type { AxiosResponse } from 'axios-miniprogram'
+import { isFunction } from 'lodash-es'
 
+type BusinessErrHandle = (err: ResponseBusinessData) => void
+type NetworkErrHandle = (err: AxiosResponse) => void
 
+/**
+ * 网络错误
+ */
 export class NetworkErrorHandle {
-    private errorHandleMap: Map<number, any> =new Map;
-   private otherErrorHandler: ErrHandle | undefined;
-   constructor(private readonly axiosError: AxiosError) {
-       this.axiosError= axiosError
-   }
+    private errorHandleMap: Map<number, any> = new Map()
+    private otherErrorHandler: NetworkErrHandle | undefined
+    constructor(private readonly error: AxiosResponse) {
+        this.error = error
+    }
 
-   addError(code:number,handle:ErrHandle):NetworkErrorHandle {
-        this.errorHandleMap.set(code,handle);
+    addError(code: number, handle: NetworkErrHandle): NetworkErrorHandle {
+        this.errorHandleMap.set(code, handle)
         return this
-   }
+    }
 
-  addOtherErrorHandle(otherErrorHandler:ErrHandle){
+    addOtherErrorHandle(otherErrorHandler: NetworkErrHandle) {
         this.otherErrorHandler = otherErrorHandler
-         return this
-  }
+        return this
+    }
 
-    handle(){
-       const statusCode = this.axiosError.status
-        if(statusCode &&this.errorHandleMap.has(statusCode)){
-            const handle = this.errorHandleMap.get(statusCode);
-            handle(this.axiosError)
-        }else{
-           _.isFunction( this.otherErrorHandler)&& this.otherErrorHandler(this.axiosError)
+    handle() {
+        const statusCode = this.error.status
+        if (statusCode && this.errorHandleMap.has(statusCode)) {
+            const handle = this.errorHandleMap.get(statusCode)
+            handle(this.error)
+        } else {
+            isFunction(this.otherErrorHandler) && this.otherErrorHandler(this.error)
         }
     }
 }
 
+/**
+ * 业务错误
+ */
+export class BusinessErrorHandle {
+    private errorHandleMap: Map<number, any> = new Map()
+    private otherErrorHandler: BusinessErrHandle | undefined
 
-export class ResponseErrorHandle {
+    constructor(private readonly error: ResponseBusinessData) {
+        this.error = error
+    }
 
+    addError(code: number, handle: BusinessErrHandle): BusinessErrorHandle {
+        this.errorHandleMap.set(code, handle)
+        return this
+    }
+
+    addOtherErrorHandle(otherErrorHandler: BusinessErrHandle): BusinessErrorHandle {
+        this.otherErrorHandler = otherErrorHandler
+        return this
+    }
+
+    handle() {
+        const statusCode = this.error.code
+        if (statusCode && this.errorHandleMap.has(statusCode)) {
+            const handle = this.errorHandleMap.get(statusCode)
+            handle(this.error)
+        } else {
+            isFunction(this.otherErrorHandler) && this.otherErrorHandler(this.error)
+        }
+    }
 }
 
 ```
-
-#request-interceptors
+# networkErrMap
 ```ts
-import type {AxiosError, AxiosResponse} from 'axios'
-
-
-export function isRequestError(response:AxiosResponse) {
-    const isBusinessError = handleBusinessError(response)
-    const isHttpError = handleHttpError(response)
-    return isBusinessError || isHttpError
+export const networkErrMap = {
+    400: '请求参数出错',
+    403: '权限不足',
+    500: '服务器端出错',
+    501: '网络未实现',
+    502: '网络错误',
+    503: '服务不可用',
+    504: '网络超时',
+    505: 'http版本不支持该请求'
 }
-
-
-export function handleBusinessError(response: AxiosResponse): boolean {
-    //有code 并且code 不在200-300之间 为异常
-    return response.data?.code >= 200 && response.data?.code < 300
-}
-
-export function handleHttpError(response: AxiosResponse): boolean {
-    return response.status >= 200 && response.status < 300
-}
-
-//error.response.data.message
-export function handleNetWorkError401(error:AxiosError) :void {
-    //没有登陆 跳转到login
-    //展示消息
-}
-
-export function handleNetWorkError403(error:AxiosError):void  {
-    //没有访问权限 跳转到403页面或登陆页
-    //展示消息
-}
-
-
-
-export function otherErrorHandle(error:AxiosError):void {
-    //展示消息
-}
-
 ```
-
 # httpCode
 ```ts
 export enum HttpStatusCode {
@@ -203,65 +298,5 @@ export enum HttpStatusCode {
     NotExtended = 510,
     NetworkAuthenticationRequired = 511,
 }
-
-```
-
-# backup
-```ts
-import { handleBusinessError, handleHttpError } from './request-interceptors'
-import _ from 'lodash-es'
-
-import axios, { AxiosInterceptorOptions, AxiosRequestConfig } from 'axios'
-import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
-
-type CustomResponse<T = any> = [T | undefined, T | undefined, AxiosResponse]
-
-interface AxiosInterceptorManager<V> {
-    use(
-        onFulfilled?: ((value: V) => V | CustomResponse | Promise<V>) | null,
-        onRejected?: ((error: any) => any) | null,
-        options?: AxiosInterceptorOptions
-    ): number
-    eject(id: number): void
-    clear(): void
-}
-interface CustomAxiosInstance extends AxiosInstance {
-    interceptors: {
-        request: AxiosInterceptorManager<InternalAxiosRequestConfig>
-        response: AxiosInterceptorManager<AxiosResponse>
-    }
-}
-
-const axiosOptions: AxiosRequestConfig = {
-    baseURL: process.env.TARO_APP_BASE_API,
-    timeout: 0
-}
-
-function setInterceptor(instance: CustomAxiosInstance) {
-    instance.interceptors.request.use(
-        (config: InternalAxiosRequestConfig) => config,
-        error => [error, undefined]
-    )
-    //
-    instance.interceptors.response.use(
-        (response: AxiosResponse) => {
-            const isBusinessError = handleBusinessError(response)
-            const isHttpError = handleHttpError(response)
-            //todo 错误消息提示
-
-            //其他情况均为正常
-            return isBusinessError || isHttpError
-                ? [response.data, undefined, response]
-                : [undefined, response.data, response]
-        },
-        error => {
-            return [error, undefined]
-        }
-    )
-
-    return instance
-}
-
-export const request: AxiosInstance = _.flow([setInterceptor])(axios.create(axiosOptions))
 
 ```
