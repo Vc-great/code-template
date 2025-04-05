@@ -18,6 +18,10 @@ const components:route = {
     "text": "Basic",
     "children": [
       {
+        "link": "/axios",
+        "text": "axios"
+      },
+      {
         "link": "/dayjs",
         "text": "dayjs"
       },
